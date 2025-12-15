@@ -1,0 +1,11 @@
+{
+  "deal_id": "deal_002",
+  "acquirer": "NordicBank",
+  "target": "PaySecure",
+  "sector": "Financial Services",
+  "subsector": "Payments",
+  "region": "Europe",
+  "deal_type": "Majority Stake",
+  "deal_value_usd_m": 180,
+  "year": 2020
+}

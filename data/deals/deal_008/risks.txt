@@ -1,0 +1,1 @@
+Risks included model accuracy under real-world constraints, data quality issues, and resistance from operations teams.

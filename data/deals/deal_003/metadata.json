@@ -1,0 +1,11 @@
+{
+  "deal_id": "deal_003",
+  "acquirer": "HealthCore Inc",
+  "target": "MedAnalytics",
+  "sector": "Healthcare",
+  "subsector": "Health Analytics",
+  "region": "North America",
+  "deal_type": "Full Acquisition",
+  "deal_value_usd_m": 250,
+  "year": 2019
+}

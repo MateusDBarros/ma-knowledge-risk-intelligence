@@ -1,0 +1,1 @@
+Key risks identified prior to the acquisition included overestimated revenue synergies, cultural mismatch between engineering teams, and dependency on a small number of enterprise clients. Integration complexity was considered medium to high due to differences in development processes.

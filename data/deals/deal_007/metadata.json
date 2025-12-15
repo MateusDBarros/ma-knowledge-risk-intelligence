@@ -1,0 +1,11 @@
+{
+  "deal_id": "deal_007",
+  "acquirer": "GlobalTel",
+  "target": "FiberNet",
+  "sector": "Telecommunications",
+  "subsector": "Infrastructure",
+  "region": "Europe",
+  "deal_type": "Full Acquisition",
+  "deal_value_usd_m": 500,
+  "year": 2018
+}

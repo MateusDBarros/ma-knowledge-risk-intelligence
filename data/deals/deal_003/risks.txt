@@ -1,0 +1,1 @@
+Risks included data privacy compliance (HIPAA), dependency on pilot customers, and uncertainty around monetization of analytics platforms.

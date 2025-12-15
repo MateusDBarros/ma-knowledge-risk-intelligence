@@ -1,0 +1,11 @@
+{
+  "deal_id": "deal_001",
+  "acquirer": "AlphaTech Group",
+  "target": "CloudNova Ltd",
+  "sector": "Technology",
+  "subsector": "SaaS",
+  "region": "North America",
+  "deal_type": "Full Acquisition",
+  "deal_value_usd_m": 320,
+  "year": 2021
+}
