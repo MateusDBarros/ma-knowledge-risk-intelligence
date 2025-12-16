@@ -83,6 +83,28 @@ def read_from_milvus(host, port):
         except Exception as e:
             logger.info(f"Exception: {e}")
 
+def list_collections(collection_name: str, query: str) -> List[str]:
+
+    collection = Collection(collection_name)
+    collection.load()
+    results = None
+
+    if query == "outcome":
+        results = collection.query(
+            expr="id >= 0",
+            output_fields=["id", "outcome"],
+        )
+    elif query == "risk":
+        results = collection.query(
+            expr="id >= 0",
+            output_fields=["id", "risk"],
+        )
+    else:
+        logger.info(f"Query: {query} invalid! select either outcome or risk!")
+
+    return results
+
+
 # --------------------------
 # Create Collection Schema
 # --------------------------
@@ -135,7 +157,7 @@ def store_collection(deals: List[Document], collection_name: str, embed_model: s
             summaries.append(text)
             risks.append("")
             outcomes.append("")
-        elif doc_type == "riks":
+        elif doc_type == "risks":
             summaries.append("")
             risks.append(text)
             outcomes.append("")
@@ -180,7 +202,7 @@ def build_documents(deals_root:str):
 
         doc_map = {
             "summary.txt": "summary",
-            "riks.txt": "riks",
+            "risks.txt": "risks",
             "outcome.txt": "outcome"
         }
 
