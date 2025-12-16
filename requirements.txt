@@ -1,3 +1,5 @@
+pydantic
+langchain-ibm
 langchain==0.3.27
 sentence-transformers==5.1.1
 pymilvus==2.6.2

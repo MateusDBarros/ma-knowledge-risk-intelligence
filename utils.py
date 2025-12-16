@@ -15,13 +15,14 @@ logging.basicConfig(level=logging.INFO)
 load_dotenv()
 env = os.getenv("ENV")
 
+EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 _embed_model = None
 
-def get_sentence_transformer(model_name: str):
+def get_sentence_transformer():
     global _embed_model
     if _embed_model is None:
-        _embed_model = SentenceTransformer(model_name)
+        _embed_model = SentenceTransformer(EMBED_MODEL)
     return _embed_model
 
 
@@ -31,9 +32,9 @@ def embed_documents(documents: List[Document]) -> List[list]:
     vectors = model.encode(texts, show_progress_bar=True, convert_to_numpy=True)
     return vectors.tolist()
 
-def connect_milvus(host: str = "localhost", port: str = 443):
-    milvus_host = os.getenv("MILVUS_HOST", host)
-    milvus_port = os.getenv("MILVUS_PORT", port)
+def connect_milvus():
+    milvus_host = os.getenv("MILVUS_HOST")
+    milvus_port = os.getenv("MILVUS_PORT")
     milvus_password = os.getenv("MILVUS_APIKEY")
 
     if milvus_host == 'localhost':
@@ -49,9 +50,9 @@ def connect_milvus(host: str = "localhost", port: str = 443):
     logger.info(f"Connection established {milvus_host}:{milvus_port}")
 
 
-def read_from_milvus(host, port):
-    connect_milvus(host, port)
-    logger.info(f"Milvus connected to {host}:{port}")
+def read_from_milvus():
+    connect_milvus()
+    logger.info(f"Milvus connected")
 
     collections = utility.list_collections()
 
@@ -69,11 +70,11 @@ def read_from_milvus(host, port):
         for field in collection.schema.fields:
             logger.info(f"Reading from field {field}")
 
-        expr = "id >= 0"
-        output_field = "id"
+        expr = " "
+        output_field = ["id", "summary", "risks", "outcome"]
 
         try:
-            results = collection.query(expr=expr, output_fields=[output_field])
+            results = collection.search(expr=expr, output_fields=[output_field], limit=10)
             if results:
                 logger.info(f"Found {len(results)} results for {collection_name}")
                 for result in results:
@@ -83,26 +84,6 @@ def read_from_milvus(host, port):
         except Exception as e:
             logger.info(f"Exception: {e}")
 
-def list_collections(collection_name: str, query: str) -> List[str]:
-
-    collection = Collection(collection_name)
-    collection.load()
-    results = None
-
-    if query == "outcome":
-        results = collection.query(
-            expr="id >= 0",
-            output_fields=["id", "outcome"],
-        )
-    elif query == "risk":
-        results = collection.query(
-            expr="id >= 0",
-            output_fields=["id", "risk"],
-        )
-    else:
-        logger.info(f"Query: {query} invalid! select either outcome or risk!")
-
-    return results
 
 
 def create_collection(collection_name: str, dim: int = 384):
@@ -135,9 +116,9 @@ def create_collection(collection_name: str, dim: int = 384):
 
 
 
-def store_collection(deals: List[Document], collection_name: str, embed_model: str):
+def store_collection(deals: List[Document], collection_name: str):
 
-    model = get_sentence_transformer(embed_model)
+    model = get_sentence_transformer()
     collection = create_collection(collection_name)
 
     summaries, texts_for_embedding, risks, outcomes, metadata = [], [], [], [], []
@@ -220,12 +201,15 @@ def build_documents(deals_root:str):
     return documents
 
 
-def search_deals(query: str, collection_name: str, top_k: int, sector: str, document_type: str):
+def search_deals(query: str, collection_name: str, top_k: int, sector: str | None = None, document_type: str | None = None):
+
+    connect_milvus()
+
     collection = Collection(collection_name)
     collection.load()
 
-    model = get_sentence_transformer("sentence-transformers/all-MiniLM-L6-v2")
-    query_embedding = model.encode(query).tolist()
+    model = get_sentence_transformer()
+    query_embedding = model.encode([query])[0].tolist()
 
     expr = []
     if sector:
@@ -233,7 +217,7 @@ def search_deals(query: str, collection_name: str, top_k: int, sector: str, docu
     if document_type:
         expr.append(f'metadata like "%\\"document_type\\": \\"{document_type}\\"%"')
 
-    filter_expr = "and".join(expr) if expr else None
+    filter_expr = " and ".join(expr) if expr else None
 
     results = collection.search(
         data=[query_embedding],
