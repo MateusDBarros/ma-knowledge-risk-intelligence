@@ -105,9 +105,6 @@ def list_collections(collection_name: str, query: str) -> List[str]:
     return results
 
 
-# --------------------------
-# Create Collection Schema
-# --------------------------
 def create_collection(collection_name: str, dim: int = 384):
 
     if utility.has_collection(collection_name):
@@ -136,9 +133,7 @@ def create_collection(collection_name: str, dim: int = 384):
     logger.info(f"Created collection {collection_name}")
     return collection
 
-# --------------------------
-# Store in Milvus
-# --------------------------
+
 
 def store_collection(deals: List[Document], collection_name: str, embed_model: str):
 
@@ -221,5 +216,42 @@ def build_documents(deals_root:str):
                 page_content=text,
                 metadata={**base_metadata, "document_type": doc_type}
             ))
+
+    return documents
+
+
+def search_deals(query: str, collection_name: str, top_k: int, sector: str, document_type: str):
+    collection = Collection(collection_name)
+    collection.load()
+
+    model = get_sentence_transformer("sentence-transformers/all-MiniLM-L6-v2")
+    query_embedding = model.encode(query).tolist()
+
+    expr = []
+    if sector:
+        expr.append(f'metadata like "%\\"sector\\": \\"{sector}\\"%"')
+    if document_type:
+        expr.append(f'metadata like "%\\"document_type\\": \\"{document_type}\\"%"')
+
+    filter_expr = "and".join(expr) if expr else None
+
+    results = collection.search(
+        data=[query_embedding],
+        anns_field="embedding",
+        param={"metric_type": "IP", "params": {"nprobe": 10}},
+        limit=top_k,
+        expr=filter_expr,
+        output_fields=["summary", "risks", "outcome", "metadata"]
+    )
+
+    documents = []
+    for hit in results[0]:
+        documents.append({
+            "score": hit.score,
+            "summary": hit.entity.get("summary"),
+            "risks": hit.entity.get("risks"),
+            "outcome": hit.entity.get("outcome"),
+            "metadata": hit.entity.get("metadata")
+        })
 
     return documents
