@@ -1,4 +1,5 @@
-import logging, re
+import json
+import logging
 import os
 from typing import List
 from langchain_ibm import WatsonxLLM
@@ -8,10 +9,10 @@ from dotenv import load_dotenv
 from utils import search_deals
 
 load_dotenv()
-env = os.environ.get("ENV")
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class DealAgentState(BaseModel):
     query: str
@@ -24,7 +25,12 @@ def build_agent():
         model_id="ibm/granite-4-h-small",
         url=os.getenv("WML_URL"),
         apikey=os.getenv("WML_APIKEY"),
-        project_id=os.getenv("PROJECT_ID")
+        project_id=os.getenv("PROJECT_ID"),
+        params={
+            "max_new_tokens": 512,
+            "temperature": 0.2,
+            "top_p": 0.9
+        }
     )
 
     graph = StateGraph(DealAgentState)
@@ -33,46 +39,62 @@ def build_agent():
         results = search_deals(
             query=state.query,
             collection_name="ma_deals_knowledge",
-            top_k=5,
-            document_type="risks"
+            top_k=6
         )
 
         if not results:
             state.context = ["No relevant deal information was found."]
             return state
 
-        state.context = [
-            f"DEAL CONTEXT:\n{r['metadata']}\n{r['risks'] or r['summary']}"
-            for r in results
-        ]
+        state.context = []
+        for r in results:
+            meta = json.loads(r["metadata"])
+
+            state.context.append(
+                f"""
+DEAL OVERVIEW:
+- Acquirer: {meta.get("acquirer")}
+- Target: {meta.get("target")}
+- Sector: {meta.get("sector")}
+- Region: {meta.get("region")}
+- Year: {meta.get("year")}
+
+IDENTIFIED RISKS:
+{r["risks"]}
+
+OBSERVED OUTCOME:
+{r["outcome"]}
+""".strip()
+            )
+
         return state
 
     def answer(state: DealAgentState) -> DealAgentState:
         context = "\n\n".join(state.context)
 
         prompt = f"""
-        You are an experienced M&A analyst.
+    You are a senior M&A integration advisor reviewing multiple completed acquisitions.
 
-        Analyze the information below and answer the question strictly based on it.
+    Your objective is to synthesize insights across deals, not to summarize individual transactions.
 
-        Context:
-        {context}
+    Using the evidence below:
+    - Identify recurring integration risk patterns
+    - Explicitly link those risks to observed post-merger outcomes
+    - Derive clear, actionable lessons that would materially improve future M&A integrations
 
-        Task:
-        - Identify recurring risks across deals
-        - Extract concrete lessons learned from outcomes
-        - Focus on cross-border or integration-related issues when applicable
+    Context:
+    {context}
 
-        Rules:
-        - Do not repeat instructions
-        - Do not describe the task
-        - Do not request a JSON format
-        - Write a direct analytical answer in plain text
-        - If information is insufficient, say: "Insufficient evidence in the dataset."
+    Guidelines:
+    - Base conclusions on patterns observed across multiple deals
+    - When similar risks appear in different sectors, treat them as systemic
+    - Write a structured analytical response with short paragraphs
+    - Each lesson should clearly state: risk → consequence → lesson learned
 
-        Answer:
-        """
+    Write a complete analytical answer. Do not be overly brief.
 
+    Answer:
+    """
         state.answer = llm.invoke(prompt)
         return state
 

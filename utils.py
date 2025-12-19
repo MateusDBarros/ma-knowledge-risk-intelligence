@@ -50,40 +50,38 @@ def connect_milvus():
     logger.info(f"Connection established {milvus_host}:{milvus_port}")
 
 
-def read_from_milvus():
+def read_from_milvus(collection_name: str):
     connect_milvus()
-    logger.info(f"Milvus connected")
+    logger.info(f"Milvus connection established")
 
     collections = utility.list_collections()
+    logger.info(f"Available collections: {collections}")
 
     if not collections:
-        logger.info(f"No collections found in Milvus, exiting")
+        logger.info("No collections available")
         return
 
-    for collection_name in collections:
-        logger.info(f"Reading from collection {collection_name}")
 
-        collection = Collection(collection_name)
-        collection.load()
+    collection = Collection(collection_name)
+    collection.load()
 
-        logger.info(f"Reading from collection {collection_name}")
-        for field in collection.schema.fields:
-            logger.info(f"Reading from field {field}")
+    logger.info("Collection schema:")
+    for field in collection.schema.fields:
+        logger.info(f" - {field.name}")
 
-        expr = " "
-        output_field = ["id", "summary", "risks", "outcome"]
+    expr = ""
+    output_fields = ["id", "summary", "risks", "outcome"]
 
-        try:
-            results = collection.search(expr=expr, output_fields=[output_field], limit=10)
-            if results:
-                logger.info(f"Found {len(results)} results for {collection_name}")
-                for result in results:
-                    logger.info(f"Result: {result}")
-            else:
-                logger.info(f"No results for {collection_name}")
-        except Exception as e:
-            logger.info(f"Exception: {e}")
-
+    try:
+        results = collection.query(expr=expr, output_fields=output_fields, limit=15)
+        if results:
+            logger.info(f"Results from {collection_name}:")
+            for hit in results:
+                logger.info(hit)
+        else:
+            logger.info(f"No data found in {collection_name}")
+    except Exception as e:
+        logger.info(f"Exception occured: {e}")
 
 
 def create_collection(collection_name: str, dim: int = 384):
@@ -115,49 +113,72 @@ def create_collection(collection_name: str, dim: int = 384):
     return collection
 
 
-
 def store_collection(deals: List[Document], collection_name: str):
-
     model = get_sentence_transformer()
     collection = create_collection(collection_name)
 
-    summaries, texts_for_embedding, risks, outcomes, metadata = [], [], [], [], []
+    deal_map = {}
+
+    # Agrupar por deal_id
     for doc in deals:
-        text = doc.page_content.strip()
-        if not text:
+        deal_id = doc.metadata.get("deal_id")
+        if not deal_id:
             continue
 
+        if deal_id not in deal_map:
+            deal_map[deal_id] = {
+                "summary": "",
+                "risks": "",
+                "outcome": "",
+                "metadata": doc.metadata
+            }
+
         doc_type = doc.metadata.get("document_type")
-
         if doc_type == "summary":
-            summaries.append(text)
-            risks.append("")
-            outcomes.append("")
+            deal_map[deal_id]["summary"] = doc.page_content
         elif doc_type == "risks":
-            summaries.append("")
-            risks.append(text)
-            outcomes.append("")
+            deal_map[deal_id]["risks"] = doc.page_content
         elif doc_type == "outcome":
-            summaries.append("")
-            risks.append("")
-            outcomes.append(text)
-        else:
-            summaries.append(text)
-            risks.append("")
-            outcomes.append("")
+            deal_map[deal_id]["outcome"] = doc.page_content
 
-        metadata.append(json.dumps(doc.metadata))
-        texts_for_embedding.append(text)
+    summaries, risks, outcomes, metadata, texts_for_embedding = [], [], [], [], []
 
-    if not texts_for_embedding:
-        logger.info(f"No embeddings found for {collection_name}")
-        return
+    for deal in deal_map.values():
+        summaries.append(deal["summary"])
+        risks.append(deal["risks"])
+        outcomes.append(deal["outcome"])
+        metadata.append(json.dumps(deal["metadata"]))
 
-    embeddings = model.encode(texts_for_embedding, show_progress_bar=True, convert_to_numpy=True).tolist()
+        combined_text = f"""
+SUMMARY:
+{deal['summary']}
+
+RISKS:
+{deal['risks']}
+
+OUTCOME:
+{deal['outcome']}
+"""
+        texts_for_embedding.append(combined_text.strip())
+
+    embeddings = model.encode(
+        texts_for_embedding,
+        show_progress_bar=True,
+        convert_to_numpy=True
+    ).tolist()
 
     collection.insert([summaries, risks, outcomes, metadata, embeddings])
     collection.flush()
-    logger.info(f"Inserted {len(embeddings)} embeddings for {collection_name}")
+
+    logger.info(f"Inserted {len(embeddings)} deals into {collection_name}")
+
+def drop_collection(collection_name: str):
+    connect_milvus()
+    if utility.has_collection(collection_name):
+        utility.drop_collection(collection_name)
+        logger.info(f"Collection {collection_name} dropped")
+    else:
+        logger.info(f"Collection {collection_name} does not exist")
 
 
 def build_documents(deals_root:str):

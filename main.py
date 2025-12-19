@@ -1,5 +1,7 @@
 import os
 
+from pymilvus.orm import utility
+
 from agent import build_agent
 from utils import connect_milvus, store_collection, build_documents, read_from_milvus, search_deals
 from dotenv import load_dotenv
@@ -37,13 +39,40 @@ def run_deal_ingestion():
         collection_name=COLLECTION_NAME)
 
     print("\nM&A deal ingestion pipeline completed successfully!")
-if __name__ == "__main__":
-    from utils import search_deals
 
+def run_cli():
+    print("M&A Deal Intelligence Assistant")
+    print("Type 'exit' to quit\n")
+
+    connect_milvus()
+    app = build_agent()
+
+    while True:
+        query = input("Your question: ").strip()
+        if not query:
+            print("Please enter a valid question.\n")
+            continue
+
+        if query.lower() in {"exit", "quit"}:
+            break
+
+        result = app.invoke({"query": query})
+
+        print("\nAnswer:\n")
+        print(result["answer"])
+        print("-" * 80 + "\n")
+
+
+if __name__ == "__main__":
+
+    #run_deal_ingestion()
+    #read_from_milvus("ma_deals_knowledge")
+    run_cli()
+'''
     COLLECTION_NAME = "ma_deals_knowledge"
 
     print("M&A Deal Search CLI (type 'exit' to quit)")
-
+    
     while True:
         query = input("\nSearch query: ").strip()
         if not query:
@@ -66,3 +95,4 @@ if __name__ == "__main__":
             print("Metadata:", r["metadata"])
             print("Risks:", r["risks"])
             print("-" * 60)
+'''
